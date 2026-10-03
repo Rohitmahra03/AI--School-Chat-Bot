@@ -1,0 +1,164 @@
+<script>
+let conversation = [];
+let isGenerating = false;
+let activeController = null;
+
+async function handleSend() {
+
+    const text = userInput.value.trim();
+
+    if (!text || isGenerating) return;
+
+    appendUserMessage(text);
+
+    userInput.value = "";
+    userInput.style.height = "auto";
+
+    isGenerating = true;
+
+    sendBtn.classList.add("hidden");
+    stopBtn.classList.remove("hidden");
+
+    const aiMsg = document.createElement("div");
+
+    aiMsg.className = "flex items-start gap-3 mb-6";
+
+    aiMsg.innerHTML = `
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600
+                    flex items-center justify-center text-white font-bold shrink-0">
+            AI
+        </div>
+
+        <div class="bubble bg-white dark:bg-slate-800 rounded-2xl px-5 py-4
+                    shadow-sm max-w-[85%]">
+            <div class="flex items-center gap-2 text-gray-500">
+                <span class="animate-pulse">●</span>
+                <span>School AI is thinking...</span>
+            </div>
+        </div>
+    `;
+
+    chatBox.appendChild(aiMsg);
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    conversation.push({
+        role: "user",
+        content: text
+    });
+
+    try {
+
+        activeController = new AbortController();
+
+        const subjectElement =
+            document.querySelector(".subject-tag.active-subject");
+
+        const subject =
+            subjectElement?.textContent.trim() || "General";
+
+        const levelElement =
+            document.querySelector(".diff-btn.active");
+
+        const level =
+            levelElement?.textContent.trim() || "Intermediate";
+
+        const language =
+            document.getElementById("languageSelect")?.value ||
+            "Hinglish";
+
+        const response = await fetch("/api/chat", {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+
+                messages: conversation.slice(-20),
+
+                subject: subject,
+
+                level: level,
+
+                language: language
+
+            }),
+
+            signal: activeController.signal
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error || "Server error"
+            );
+        }
+
+        const reply =
+            data.reply ||
+            "AI ne koi response nahi diya.";
+
+        conversation.push({
+            role: "assistant",
+            content: reply
+        });
+
+        const bubble =
+            aiMsg.querySelector(".bubble");
+
+        bubble.innerHTML = formatAIResponse(reply);
+
+    } catch (error) {
+
+        if (error.name === "AbortError") {
+
+            const bubble =
+                aiMsg.querySelector(".bubble");
+
+            bubble.innerHTML =
+                `<span class="text-gray-500">
+                    Response stopped.
+                </span>`;
+
+        } else {
+
+            console.error(error);
+
+            const bubble =
+                aiMsg.querySelector(".bubble");
+
+            bubble.innerHTML = `
+                <div class="text-red-500">
+                    <strong>Connection Error</strong>
+
+                    <p class="mt-2 text-sm">
+                        Groq AI se connection nahi ho paya.
+                        Check karein ki:
+                    </p>
+
+                    <ul class="mt-2 text-sm list-disc ml-5">
+                        <li>server.js running hai</li>
+                        <li>.env file mein API key hai</li>
+                        <li>npm install complete hai</li>
+                    </ul>
+                </div>
+            `;
+        }
+
+    } finally {
+
+        activeController = null;
+
+        isGenerating = false;
+
+        sendBtn.classList.remove("hidden");
+        stopBtn.classList.add("hidden");
+
+        chatBox.scrollTop =
+            chatBox.scrollHeight;
+    }
+}
+</script>
